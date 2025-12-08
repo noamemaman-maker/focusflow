@@ -33,3 +33,12 @@ outputType = "webview"
 [[ports]]
 localPort = 5000
 externalPort = 80
+
+[[ports]]
+localPort = 32823
+externalPort = 3000
+
+[userenv]
+
+[userenv.shared]
+NEXT_PUBLIC_APP_URL = "https://aafcb19b-1a67-4f35-a78e-8e9da6d339fe-00-kpwmx4o3zfsp.janeway.replit.dev"
