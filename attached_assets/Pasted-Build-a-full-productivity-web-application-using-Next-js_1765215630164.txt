@@ -1,0 +1,170 @@
+Build a full productivity web application using:
+
+Next.js 14+ (App Router)
+TypeScript
+TailwindCSS
+shadcn/ui
+Supabase (Auth, DB, RLS)
+Stripe (Premium subscription)
+OpenAI (AI insights)
+The app should be mobile-first and provide a Pomodoro-style timer with multiple focus modes. Core features are free. Premium features unlock when profile.is_premium = true.
+
+================================================================================ CORE FREE FEATURES
+Pomodoro Timer (Free)
+
+Work: 25 minutes
+Break: 5 minutes
+Long Break: 15 minutes
+Timer persists in localStorage
+Start / Pause / Reset
+Session Logging (Free) Log each completed session to Supabase:
+
+user_id
+session_type (work, short_break, long_break)
+mode (pomodoro, deep, 52-17, ultradian)
+start_time
+end_time
+duration_seconds
+created_at
+Basic Stats (Free)
+
+Today’s work minutes
+Today’s completed cycles
+Last 7 sessions only
+Authentication (Free)
+
+Supabase Auth (email/password)
+Protected routes
+Settings page for account info
+================================================================================ PREMIUM FEATURES (PAYWALLED)
+Premium is unlocked when profile.is_premium = true.
+
+PREMIUM FEATURE 1: Advanced Focus Modes
+Provide 4 timer modes using a shadcn/ui segmented control or tabs:
+
+Pomodoro (Free)
+
+25 / 5
+Deep Work (Premium)
+
+Work: 50 minutes
+Break: 10 minutes
+52/17 Mode (Premium)
+
+Work: 52 minutes
+Break: 17 minutes
+Ultradian Cycle (Premium)
+
+Work: 90 minutes
+Break: 20 minutes
+If a non-premium user taps a premium mode:
+
+Show a shadcn modal: "Premium Feature — Upgrade to unlock"
+Button triggers Stripe Checkout.
+PREMIUM FEATURE 2: Productivity Dashboard
+Create /dashboard that is premium-only.
+
+Dashboard must include:
+
+Total work minutes today
+Total work minutes this week
+Break time summary
+Completed cycles summary
+Focus Score: focus_score = (work_minutes / (work_minutes + break_minutes)) * 100
+Weekly charts:
+Bar or Line chart of work minutes per day
+Donut chart of work vs break ratio
+Productivity streak counter
+Show extended history (no 7-day limit)
+If user is NOT premium:
+
+Blur or lock content
+Display an “Upgrade to Premium” card
+PREMIUM FEATURE 3: AI Productivity Insights
+Create /insights page (premium-only).
+
+Include button: “Generate My AI Productivity Insight”
+
+When clicked:
+
+Fetch last 7 days of user sessions from Supabase.
+
+Send structured JSON summary to OpenAI GPT-4o-mini or GPT-4o.
+
+Use the following system prompt:
+
+Output formatted Markdown:
+
+Overview
+Strengths
+Opportunities to Improve
+Recommendations
+Store each insight in ai_insights table (optional).
+
+================================================================================ STRIPE SUBSCRIPTION SYSTEM
+Implement full subscription flow:
+
+“Upgrade to Premium” button triggers /api/stripe/create-checkout-session
+Stripe Checkout created for subscription product “Premium”
+On successful payment:
+Stripe webhook updates Supabase: profile.is_premium = true
+Add /api/stripe/create-portal-session for subscription management
+Navbar displays a PREMIUM badge if user is premium.
+================================================================================ DATABASE SCHEMA (SUPABASE)
+Create the following tables with RLS:
+
+Add RLS policies so users only access their own data.
+
+================================================================================ TIMER LOGIC REQUIREMENTS
+Use a client component with:
+
+mode (“pomodoro”, “deep”, “52-17”, “ultradian”)
+State for:
+secondsLeft
+running
+currentSessionType (work or break)
+When work session completes:
+Log session → switch to break
+When break completes:
+Switch back to work
+Changing modes resets timer.
+
+================================================================================ UI REQUIREMENTS
+Mobile-first:
+
+Timer page uses centered layout with stacked buttons.
+Dashboard uses stacked cards, converting to grid on desktop.
+Insights page uses card presentation for AI output.
+Use shadcn/ui for:
+
+Navbar
+Tabs / Segmented Controls
+Cards
+Buttons
+Inputs
+Dialog Modals
+Charts (Recharts or Chart.js)
+Pages:
+
+/ (landing)
+/timer
+/dashboard
+/insights
+/history
+/auth/login
+/auth/register
+/settings
+/billing
+================================================================================ DELIVERABLE
+Produce a fully working SaaS-style productivity app with:
+
+Timer + session logging
+Premium focus modes
+Premium dashboard
+Premium AI insights
+Stripe upgrade flow
+Premium UI gating
+Supabase profile & RLS
+Mobile-first UI
+Clean shadcn styling
+All premium functionality must be hidden or locked unless is_premium = true.
