@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { formatTime, cn } from "@/lib/utils";
 import { FocusMode, SessionType, TIMER_CONFIGS } from "@/types";
 import { createClient } from "@/lib/supabase/client";
+import { useSoundAlert } from "@/hooks/useSoundAlert";
 
 interface TimerProps {
   userId: string;
@@ -38,7 +39,7 @@ export function Timer({ userId, isPremium }: TimerProps) {
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [selectedPremiumMode, setSelectedPremiumMode] = useState<string>("");
   const [soundEnabled, setSoundEnabled] = useState(true);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const playSound = useSoundAlert();
   const supabase = createClient();
 
   useEffect(() => {
@@ -86,15 +87,58 @@ export function Timer({ userId, isPremium }: TimerProps) {
     }
   }, [supabase, userId]);
 
-  const playSound = useCallback(() => {
-    if (soundEnabled && audioRef.current) {
-      audioRef.current.currentTime = 0;
-      audioRef.current.play().catch(console.error);
+  const requestNotificationPermission = useCallback(async () => {
+    if (typeof window !== "undefined" && "Notification" in window) {
+      if (Notification.permission === "default") {
+        await Notification.requestPermission();
+      }
     }
-  }, [soundEnabled]);
+  }, []);
+
+  useEffect(() => {
+    requestNotificationPermission();
+  }, [requestNotificationPermission]);
+
+  const showNotification = useCallback((title: string, body: string) => {
+    if (typeof window !== "undefined" && "Notification" in window) {
+      if (Notification.permission === "granted") {
+        try {
+          const notification = new Notification(title, {
+            body,
+          });
+          console.log("Notification sent:", title);
+        } catch (error) {
+          console.error("Failed to show notification:", error);
+        }
+      } else {
+        console.log("Notification permission not granted:", Notification.permission);
+      }
+    }
+  }, []);
+
+  const handlePlaySound = useCallback(() => {
+    if (soundEnabled) {
+      if (currentSessionType === "work") {
+        // Work session ended - play success bell (time for break)
+        playSound("/sounds/success-bell.mp3");
+        showNotification("Break Time! 🎉", "Great work! Time to take a well-deserved break.");
+      } else {
+        // Break ended - play begin work bell (time to start working)
+        playSound("/sounds/begin-work-bell.mp3");
+        showNotification("Back to Work! 💪", "Break's over. Let's get focused!");
+      }
+    } else {
+      // Show notifications even if sound is disabled
+      if (currentSessionType === "work") {
+        showNotification("Break Time! 🎉", "Great work! Time to take a well-deserved break.");
+      } else {
+        showNotification("Back to Work! 💪", "Break's over. Let's get focused!");
+      }
+    }
+  }, [soundEnabled, currentSessionType, playSound, showNotification]);
 
   const handleSessionComplete = useCallback(async () => {
-    playSound();
+    handlePlaySound();
     const endTime = new Date().toISOString();
     const config = TIMER_CONFIGS[mode];
     
@@ -126,7 +170,7 @@ export function Timer({ userId, isPremium }: TimerProps) {
     
     setStartTime(new Date().toISOString());
     setRunning(false);
-  }, [mode, currentSessionType, startTime, completedCycles, logSession, playSound]);
+  }, [mode, currentSessionType, startTime, completedCycles, logSession, handlePlaySound]);
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -198,10 +242,6 @@ export function Timer({ userId, isPremium }: TimerProps) {
 
   return (
     <div className="flex flex-col items-center gap-6 w-full max-w-md mx-auto px-4">
-      <audio ref={audioRef} preload="auto">
-        <source src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2teleA9Imtfbr30TKIjP2benYQ5fpt/Zn34cNYnK1q+iZRFeoNzVoIIkO4fF0qyhaxRbn9nTn4YnPoTC0K6nbxdZnNjQnoopQIG+za6qchlXmtbOnowsRH67ya6tchxVl9TLnI8vSHu4xq6vdR9TldLJm5IySni1w66xeCI=" type="audio/wav" />
-      </audio>
-
       <Tabs value={mode} className="w-full">
         <TabsList className="grid w-full grid-cols-4">
           {(Object.keys(TIMER_CONFIGS) as FocusMode[]).map((m) => (
