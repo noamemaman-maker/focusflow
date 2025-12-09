@@ -21,15 +21,20 @@ export default function BillingPage() {
 
       const { data: profile } = await supabase
         .from("profiles")
-        .select("is_premium")
+        .select("is_premium, stripe_subscription_id")
         .eq("user_id", user.id)
         .single();
 
+      console.log("Premium status check:", profile);
       setIsPremium(profile?.is_premium ?? false);
       setLoading(false);
     }
 
     checkPremium();
+    
+    // Refresh premium status every 5 seconds when on billing page
+    const interval = setInterval(checkPremium, 5000);
+    return () => clearInterval(interval);
   }, [supabase]);
 
   const handleCheckout = async () => {
@@ -70,6 +75,22 @@ export default function BillingPage() {
     }
   };
 
+  const refreshPremiumStatus = async () => {
+    setLoading(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("is_premium, stripe_subscription_id")
+      .eq("user_id", user.id)
+      .single();
+
+    console.log("Refreshed premium status:", profile);
+    setIsPremium(profile?.is_premium ?? false);
+    setLoading(false);
+  };
+
   const premiumFeatures = [
     "Deep Work Mode (50/10)",
     "52/17 Focus Mode",
@@ -94,7 +115,19 @@ export default function BillingPage() {
 
   return (
     <div className="py-8 max-w-4xl mx-auto">
-      <h1 className="text-3xl font-bold mb-8">Billing</h1>
+      <div className="flex items-center justify-between mb-8">
+        <h1 className="text-3xl font-bold">Billing</h1>
+        <Button variant="outline" onClick={refreshPremiumStatus} disabled={loading}>
+          {loading ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Refreshing...
+            </>
+          ) : (
+            "Refresh Status"
+          )}
+        </Button>
+      </div>
 
       {isPremium ? (
         <div className="space-y-6">

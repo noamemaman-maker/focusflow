@@ -10,10 +10,12 @@ const supabaseAdmin = createClient(
 );
 
 export async function POST(request: Request) {
+  console.log("📥 Next.js webhook received");
   const body = await request.text();
   const signature = request.headers.get("stripe-signature");
 
   if (!signature) {
+    console.error("❌ No stripe-signature header");
     return NextResponse.json({ error: "No signature" }, { status: 400 });
   }
 
@@ -25,8 +27,9 @@ export async function POST(request: Request) {
       signature,
       process.env.STRIPE_WEBHOOK_SECRET!
     );
+    console.log("✅ Event verified - Type:", event.type, "Event ID:", event.id);
   } catch (err) {
-    console.error("Webhook signature verification failed:", err);
+    console.error("❌ Webhook signature verification failed:", err);
     return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
   }
 
@@ -35,65 +38,157 @@ export async function POST(request: Request) {
       case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session;
         const userId = session.metadata?.user_id;
+        const subscriptionId = typeof session.subscription === "string" 
+          ? session.subscription 
+          : (session.subscription as Stripe.Subscription)?.id;
+
+        console.log("Checkout completed - User ID:", userId, "Subscription ID:", subscriptionId);
 
         if (userId) {
-          await supabaseAdmin
+          const { error } = await supabaseAdmin
             .from("profiles")
             .update({
               is_premium: true,
-              stripe_subscription_id: session.subscription as string,
+              stripe_subscription_id: subscriptionId || null,
             })
             .eq("user_id", userId);
+
+          if (error) {
+            console.error("❌ Database update error:", error);
+          } else {
+            console.log("✅ Premium activated for user", userId);
+          }
+        } else {
+          console.error("❌ No user_id in session metadata");
         }
         break;
       }
 
-      case "customer.subscription.updated": {
+      case "customer.subscription.updated":
+      case "customer.subscription.created": {
         const subscription = event.data.object as Stripe.Subscription;
-        const customerId = subscription.customer as string;
+        const customerId = typeof subscription.customer === "string" 
+          ? subscription.customer 
+          : (subscription.customer as Stripe.Customer)?.id;
+        const subscriptionId = subscription.id;
+        const isActive = subscription.status === "active" || subscription.status === "trialing";
 
-        const { data: profile } = await supabaseAdmin
-          .from("profiles")
-          .select("user_id")
-          .eq("stripe_customer_id", customerId)
-          .single();
+        console.log("Subscription updated - Customer ID:", customerId, "Subscription ID:", subscriptionId, "Status:", subscription.status);
 
-        if (profile) {
-          const isActive = subscription.status === "active" || subscription.status === "trialing";
-          await supabaseAdmin
+        if (customerId) {
+          const { data: profile, error: fetchError } = await supabaseAdmin
             .from("profiles")
-            .update({ is_premium: isActive })
-            .eq("user_id", profile.user_id);
+            .select("user_id")
+            .eq("stripe_customer_id", customerId)
+            .single();
+
+          if (fetchError) {
+            console.error("❌ Error fetching profile:", fetchError);
+          } else if (profile) {
+            const { error: updateError } = await supabaseAdmin
+              .from("profiles")
+              .update({
+                is_premium: isActive,
+                stripe_subscription_id: subscriptionId,
+              })
+              .eq("user_id", profile.user_id);
+
+            if (updateError) {
+              console.error("❌ Error updating profile:", updateError);
+            } else {
+              console.log("✅ Subscription updated for user", profile.user_id);
+            }
+          }
+        }
+        break;
+      }
+
+      case "invoice.payment_succeeded":
+      case "invoice.paid":
+      case "invoice_payment.paid": {
+        const invoice = event.data.object as Stripe.Invoice;
+        const customerId = typeof invoice.customer === "string" 
+          ? invoice.customer 
+          : (invoice.customer as Stripe.Customer)?.id;
+        const subscriptionId = typeof invoice.subscription === "string"
+          ? invoice.subscription
+          : (invoice.subscription as Stripe.Subscription)?.id;
+
+        console.log("Invoice paid - Customer ID:", customerId, "Subscription ID:", subscriptionId);
+
+        if (customerId) {
+          const { data: profile, error: fetchError } = await supabaseAdmin
+            .from("profiles")
+            .select("user_id")
+            .eq("stripe_customer_id", customerId)
+            .single();
+
+          if (fetchError) {
+            console.error("❌ Error fetching profile:", fetchError);
+          } else if (profile) {
+            const updateData: any = { is_premium: true };
+            if (subscriptionId) {
+              updateData.stripe_subscription_id = subscriptionId;
+            }
+
+            const { error: updateError } = await supabaseAdmin
+              .from("profiles")
+              .update(updateData)
+              .eq("user_id", profile.user_id);
+
+            if (updateError) {
+              console.error("❌ Error updating profile:", updateError);
+            } else {
+              console.log("🔄 Invoice paid — premium activated for user", profile.user_id);
+            }
+          }
         }
         break;
       }
 
       case "customer.subscription.deleted": {
         const subscription = event.data.object as Stripe.Subscription;
-        const customerId = subscription.customer as string;
+        const customerId = typeof subscription.customer === "string" 
+          ? subscription.customer 
+          : (subscription.customer as Stripe.Customer)?.id;
 
-        const { data: profile } = await supabaseAdmin
-          .from("profiles")
-          .select("user_id")
-          .eq("stripe_customer_id", customerId)
-          .single();
+        console.log("Subscription deleted - Customer ID:", customerId);
 
-        if (profile) {
-          await supabaseAdmin
+        if (customerId) {
+          const { data: profile, error: fetchError } = await supabaseAdmin
             .from("profiles")
-            .update({
-              is_premium: false,
-              stripe_subscription_id: null,
-            })
-            .eq("user_id", profile.user_id);
+            .select("user_id")
+            .eq("stripe_customer_id", customerId)
+            .single();
+
+          if (fetchError) {
+            console.error("❌ Error fetching profile:", fetchError);
+          } else if (profile) {
+            const { error: updateError } = await supabaseAdmin
+              .from("profiles")
+              .update({
+                is_premium: false,
+                stripe_subscription_id: null,
+              })
+              .eq("user_id", profile.user_id);
+
+            if (updateError) {
+              console.error("❌ Error updating profile:", updateError);
+            } else {
+              console.log("❌ Subscription cancelled — premium removed for user", profile.user_id);
+            }
+          }
         }
         break;
       }
+
+      default:
+        console.log("ℹ️ Unhandled event type:", event.type);
     }
 
     return NextResponse.json({ received: true });
   } catch (error) {
-    console.error("Webhook handler error:", error);
+    console.error("❌ Webhook handler error:", error);
     return NextResponse.json(
       { error: "Webhook handler failed" },
       { status: 500 }
