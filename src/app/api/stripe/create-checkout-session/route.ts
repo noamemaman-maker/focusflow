@@ -56,8 +56,8 @@ export async function POST() {
           quantity: 1,
         },
       ],
-      success_url: `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:5000"}/billing?success=true`,
-      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:5000"}/billing?canceled=true`,
+      success_url: `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/billing?success=true`,
+      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/billing?canceled=true`,
       metadata: {
         user_id: user.id,
       },

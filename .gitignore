@@ -36,3 +36,9 @@ next-env.d.ts
 # IDE
 .idea
 .vscode
+
+# Replit
+.replit
+
+# local
+.local/
