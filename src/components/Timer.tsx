@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Play, Pause, RotateCcw, Volume2, VolumeX, Square } from "lucide-react";
+import { Play, Pause, RotateCcw, Volume2, VolumeX, Square, SkipForward } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -161,7 +161,8 @@ export function Timer({ userId, isPremium }: TimerProps) {
       const newCycles = completedCycles + 1;
       setCompletedCycles(newCycles);
       
-      if (mode === "pomodoro" && newCycles % 4 === 0 && config.longBreakDuration) {
+      // Check for long break (works for any mode that has longBreakDuration defined)
+      if (config.longBreakDuration && newCycles % 4 === 0) {
         setCurrentSessionType("long_break");
         setSecondsLeft(config.longBreakDuration);
       } else {
@@ -183,7 +184,7 @@ export function Timer({ userId, isPremium }: TimerProps) {
     if (running && secondsLeft > 0) {
       interval = setInterval(() => {
         setSecondsLeft((prev) => prev - 1);
-      }, 1000);
+      }, 10); // 10ms interval for very fast countdown (100x speed)
     } else if (running && secondsLeft === 0) {
       handleSessionComplete();
     }
@@ -250,6 +251,50 @@ export function Timer({ userId, isPremium }: TimerProps) {
       setSecondsLeft(config.breakDuration);
     }
   }, [startTime, running, mode, currentSessionType, secondsLeft, logSession]);
+
+  const handleSkip = useCallback(async () => {
+    const config = TIMER_CONFIGS[mode];
+    
+    // Save current session if it's been running for at least 60 seconds
+    if (startTime && running) {
+      const endTime = new Date().toISOString();
+      const totalDuration = currentSessionType === "work" 
+        ? config.workDuration 
+        : currentSessionType === "long_break" 
+          ? (config.longBreakDuration || config.breakDuration)
+          : config.breakDuration;
+      const elapsedSeconds = totalDuration - secondsLeft;
+      
+      // Save if duration meets minimum threshold
+      if (elapsedSeconds >= 60) {
+        await logSession(currentSessionType, mode, startTime, endTime, elapsedSeconds);
+      }
+    }
+    
+    // Skip to next session type (works for all timer modes)
+    if (currentSessionType === "work") {
+      // Skip to break - increment cycles for all modes
+      const newCycles = completedCycles + 1;
+      setCompletedCycles(newCycles);
+      
+      // Check for long break (works for any mode that has longBreakDuration defined)
+      if (config.longBreakDuration && newCycles % 4 === 0) {
+        setCurrentSessionType("long_break");
+        setSecondsLeft(config.longBreakDuration);
+      } else {
+        setCurrentSessionType("short_break");
+        setSecondsLeft(config.breakDuration);
+      }
+    } else {
+      // Skip back to work (works for all timer modes)
+      setCurrentSessionType("work");
+      setSecondsLeft(config.workDuration);
+    }
+    
+    // Reset timer state
+    setRunning(false);
+    setStartTime(null);
+  }, [startTime, running, mode, currentSessionType, secondsLeft, completedCycles, logSession]);
 
   const handleReset = () => {
     const config = TIMER_CONFIGS[mode];
@@ -338,11 +383,17 @@ export function Timer({ userId, isPremium }: TimerProps) {
                     <Square className="h-4 w-4 mr-2" />
                     Stop
                   </Button>
+                  <Button size="lg" onClick={handleSkip} variant="outline" className="w-28">
+                    <SkipForward className="h-5 w-5 mr-2" />
+                    {currentSessionType === "work" ? "Skip to Break" : "Skip to Work"}
+                  </Button>
                 </>
               )}
-              <Button size="lg" variant="outline" onClick={handleReset}>
-                <RotateCcw className="h-5 w-5" />
-              </Button>
+              {!running && (
+                <Button size="lg" variant="outline" onClick={handleReset}>
+                  <RotateCcw className="h-5 w-5" />
+                </Button>
+              )}
               <Button 
                 size="lg" 
                 variant="ghost" 
