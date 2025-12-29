@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Play, Pause, RotateCcw, Volume2, VolumeX } from "lucide-react";
+import { Play, Pause, RotateCcw, Volume2, VolumeX, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -214,6 +214,38 @@ export function Timer({ userId, isPremium }: TimerProps) {
     setRunning(false);
   };
 
+  const handleStop = useCallback(async () => {
+    if (!startTime || !running) return;
+    
+    const endTime = new Date().toISOString();
+    const config = TIMER_CONFIGS[mode];
+    
+    // Calculate elapsed time: totalDuration - secondsLeft
+    const totalDuration = currentSessionType === "work" 
+      ? config.workDuration 
+      : currentSessionType === "long_break" 
+        ? (config.longBreakDuration || config.breakDuration)
+        : config.breakDuration;
+    
+    const elapsedSeconds = totalDuration - secondsLeft;
+    
+    // Save the partial session with actual elapsed time
+    await logSession(currentSessionType, mode, startTime, endTime, elapsedSeconds);
+    
+    // Stop the timer and reset state
+    setRunning(false);
+    setStartTime(null);
+    
+    // Reset to initial state for the current session type
+    if (currentSessionType === "work") {
+      setSecondsLeft(config.workDuration);
+    } else if (currentSessionType === "long_break") {
+      setSecondsLeft(config.longBreakDuration || config.breakDuration);
+    } else {
+      setSecondsLeft(config.breakDuration);
+    }
+  }, [startTime, running, mode, currentSessionType, secondsLeft, logSession]);
+
   const handleReset = () => {
     const config = TIMER_CONFIGS[mode];
     setSecondsLeft(currentSessionType === "work" 
@@ -285,17 +317,23 @@ export function Timer({ userId, isPremium }: TimerProps) {
 
             <Progress value={progress} className="w-full h-2" />
 
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3 flex-wrap justify-center">
               {!running ? (
                 <Button size="lg" onClick={handleStart} className="w-28">
                   <Play className="h-5 w-5 mr-2" />
                   Start
                 </Button>
               ) : (
-                <Button size="lg" onClick={handlePause} variant="secondary" className="w-28">
-                  <Pause className="h-5 w-5 mr-2" />
-                  Pause
-                </Button>
+                <>
+                  <Button size="lg" onClick={handlePause} variant="secondary" className="w-28">
+                    <Pause className="h-5 w-5 mr-2" />
+                    Pause
+                  </Button>
+                  <Button size="lg" onClick={handleStop} variant="outline" className="w-28">
+                    <Square className="h-4 w-4 mr-2" />
+                    Stop
+                  </Button>
+                </>
               )}
               <Button size="lg" variant="outline" onClick={handleReset}>
                 <RotateCcw className="h-5 w-5" />
