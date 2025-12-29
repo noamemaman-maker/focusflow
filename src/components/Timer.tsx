@@ -73,6 +73,11 @@ export function Timer({ userId, isPremium }: TimerProps) {
   }, [mode, secondsLeft, currentSessionType, startTime, completedCycles]);
 
   const logSession = useCallback(async (sessionType: SessionType, sessionMode: FocusMode, start: string, end: string, duration: number) => {
+    // Skip saving sessions shorter than 60 seconds
+    if (duration < 60) {
+      return;
+    }
+    
     try {
       await supabase.from("sessions").insert({
         user_id: userId,
