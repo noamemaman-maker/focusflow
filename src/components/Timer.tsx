@@ -184,7 +184,7 @@ export function Timer({ userId, isPremium }: TimerProps) {
     if (running && secondsLeft > 0) {
       interval = setInterval(() => {
         setSecondsLeft((prev) => prev - 1);
-      }, 10); // 10ms interval for very fast countdown (100x speed)
+      }, 1000); // 1 second interval for regular counting
     } else if (running && secondsLeft === 0) {
       handleSessionComplete();
     }
